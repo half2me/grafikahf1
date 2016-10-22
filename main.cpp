@@ -70,7 +70,7 @@ void getErrorInfo(unsigned int handle) {
         int written;
         glGetShaderInfoLog(handle, logLen, &written, log);
         printf("Shader log:\n%s", log);
-        delete log;
+        delete[] log;
     }
 }
 
@@ -96,7 +96,7 @@ void checkLinking(unsigned int program) {
 
 // vertex shader in GLSL
 const char *vertexSource = R"(
-	#version 330 core
+	#version 330
     precision highp float;
 
 	uniform mat4 MVP;			// Model-View-Projection matrix in row-major format
@@ -113,7 +113,7 @@ const char *vertexSource = R"(
 
 // fragment shader in GLSL
 const char *fragmentSource = R"(
-	#version 330 core
+	#version 330
     precision highp float;
 
 	in vec3 color;				// variable input: interpolated color of vertex shader
@@ -484,8 +484,7 @@ void onKeyboardUp(unsigned char key, int pX, int pY) {
 
 // Mouse click event
 void onMouse(int button, int state, int pX, int pY) {
-    if (button == GLUT_LEFT_BUTTON &&
-        state == GLUT_DOWN) {  // GLUT_LEFT_BUTTON / GLUT_RIGHT_BUTTON and GLUT_DOWN / GLUT_UP
+    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {  // GLUT_LEFT_BUTTON / GLUT_RIGHT_BUTTON and GLUT_DOWN / GLUT_UP
         float cX = 2.0f * pX / windowWidth - 1;    // flip y axis
         float cY = 1.0f - 2.0f * pY / windowHeight;
         lineStrip.AddPoint(cX, cY);
@@ -523,8 +522,7 @@ int main(int argc, char *argv[]) {
 #if !defined(__APPLE__)
     glutInitContextVersion(majorVersion, minorVersion);
 #endif
-    glutInitWindowSize(windowWidth,
-                       windowHeight);                // Application window is initially of resolution 600x600
+    glutInitWindowSize(windowWidth, windowHeight);                // Application window is initially of resolution 600x600
     glutInitWindowPosition(100, 100);                            // Relative location of the application window
 #if defined(__APPLE__)
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH | GLUT_3_2_CORE_PROFILE);  // 8 bit R,G,B,A + double buffer + depth buffer
