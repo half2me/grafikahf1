@@ -96,7 +96,7 @@ void checkLinking(unsigned int program) {
 
 // vertex shader in GLSL
 const char *vertexSource = R"(
-	#version 330
+	#version 330 core
     precision highp float;
 
 	uniform mat4 MVP;			// Model-View-Projection matrix in row-major format
@@ -113,7 +113,7 @@ const char *vertexSource = R"(
 
 // fragment shader in GLSL
 const char *fragmentSource = R"(
-	#version 330
+	#version 330 core
     precision highp float;
 
 	in vec3 color;				// variable input: interpolated color of vertex shader
@@ -321,16 +321,17 @@ public:
 
         // vertex coordinates: vbo[0] -> Attrib Array 0 -> vertexPosition of the vertex shader
         glBindBuffer(GL_ARRAY_BUFFER, vbo[0]); // make it active, it is an array
-        float vertexCoords[vertices.size() * 3];
+        float *vertexCoords = new float[vertices.size() * 3];
         for (int i = 0; i<vertices.size(); i++) {
             vertexCoords[i*3] = vertices[i].v[0];
             vertexCoords[i*3+1] = vertices[i].v[1];
             vertexCoords[i*3+2] = vertices[i].v[2];
         } // vertex data on the CPU
         glBufferData(GL_ARRAY_BUFFER,      // copy to the GPU
-                     sizeof(vertexCoords),  // number of the vbo in bytes
+                     sizeof(float) * vertices.size() * 3,  // number of the vbo in bytes
                      vertexCoords,           // address of the data array on the CPU
                      GL_STATIC_DRAW);       // copy to that part of the memory which is not modified
+        delete[] vertexCoords;
         // Map Attribute Array 0 to the current bound vertex buffer (vbo[0])
         glEnableVertexAttribArray(0);
         // Data organization of Attribute Array 0
@@ -341,13 +342,14 @@ public:
 
         // vertex colors: vbo[1] -> Attrib Array 1 -> vertexColor of the vertex shader
         glBindBuffer(GL_ARRAY_BUFFER, vbo[1]); // make it active, it is an array
-        float vertexColors[vertices.size() * 3];
+        float *vertexColors = new float[vertices.size() * 3];
         for (int i = 0; i<vertices.size()*3; i++) {
             vertexColors[i*3] = color.v[0];
             vertexColors[i*3+1] = color.v[1];
             vertexColors[i*3+2] = color.v[2];
         }// vertex data on the CPU
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertexColors), vertexColors, GL_STATIC_DRAW);    // copy to the GPU
+        delete[] vertexColors;
+        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vertices.size() * 3, vertexColors, GL_STATIC_DRAW);    // copy to the GPU
 
         // Map Attribute Array 1 to the current bound vertex buffer (vbo[1])
         glEnableVertexAttribArray(1);  // Vertex position
