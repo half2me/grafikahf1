@@ -41,9 +41,11 @@
 #include <vector>
 
 #if defined(__APPLE__)
+
 #include <GLUT/GLUT.h>
 #include <OpenGL/gl3.h>
 #include <OpenGL/glu.h>
+
 #else
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__)
 #include <windows.h>
@@ -99,15 +101,15 @@ const char *vertexSource = R"(
 	#version 330 core
     precision highp float;
 
-	uniform mat4 MVP;			// Model-View-Projection matrix in row-major format
+	uniform mat4 MVP;
 
-	in vec3 vertexPosition;		// variable input from Attrib Array selected by glBindAttribLocation
-	in vec3 vertexColor;	    // variable input from Attrib Array selected by glBindAttribLocation
-	out vec3 color;				// output attribute
+	layout (location = 0) in vec3 position;
+	layout (location = 1) in vec3 color;
+	out vec3 ourColor;
 
 	void main() {
-		color = vertexColor;														// copy color from input to output
-		gl_Position = vec4(vertexPosition.x, vertexPosition.y, vertexPosition.z, 1) * MVP; 		// transform to clipping space
+		ourColor = color;
+		gl_Position = vec4(position, 1.0f) * MVP; 		// transform to clipping space
 	}
 )";
 
@@ -116,11 +118,11 @@ const char *fragmentSource = R"(
 	#version 330 core
     precision highp float;
 
-	in vec3 color;				// variable input: interpolated color of vertex shader
+	in vec3 ourColor;				// variable input: interpolated color of vertex shader
 	out vec4 fragmentColor;		// output that goes to the raster memory as told by glBindFragDataLocation
 
 	void main() {
-		fragmentColor = vec4(color, 1); // extend RGB to RGBA
+		fragmentColor = vec4(ourColor, 1.0f); // extend RGB to RGBA
 	}
 )";
 
@@ -234,73 +236,25 @@ public:
     }
 };
 
-// 2D camera
+// 3D camera
 Camera camera;
 
 // handle of the shader program
 unsigned int shaderProgram;
 
-class LineStrip {
-    GLuint vao, vbo;        // vertex array object, vertex buffer object
-    float vertexData[100]; // interleaved data of coordinates and colors
-    int nVertices;       // number of vertices
+struct ColoredVertex {
 public:
-    LineStrip() {
-        nVertices = 0;
-    }
+    vec4 v;
+    vec4 c;
 
-    void Create() {
-        glGenVertexArrays(1, &vao);
-        glBindVertexArray(vao);
-
-        glGenBuffers(1, &vbo); // Generate 1 vertex buffer object
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        // Enable the vertex attribute arrays
-        glEnableVertexAttribArray(0);  // attribute array 0
-        glEnableVertexAttribArray(1);  // attribute array 1
-        // Map attribute array 0 to the vertex data of the interleaved vbo
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float),
-                              reinterpret_cast<void *>(0)); // attribute array, components/attribute, component type, normalize?, stride, offset
-        // Map attribute array 1 to the color data of the interleaved vbo
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<void *>(3 * sizeof(float)));
-    }
-
-    void AddPoint(float cX, float cY) {
-        if (nVertices >= 20) return;
-
-        vec4 wVertex = vec4(cX, cY, 0, 1) * camera.Pinv() * camera.Vinv();
-        // fill interleaved data
-        vertexData[5 * nVertices] = wVertex.v[0];
-        vertexData[5 * nVertices + 1] = wVertex.v[1];
-        vertexData[5 * nVertices + 2] = 1; // red
-        vertexData[5 * nVertices + 3] = 1; // green
-        vertexData[5 * nVertices + 4] = 0; // blue
-        nVertices++;
-        // copy data to the GPU
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER, nVertices * 5 * sizeof(float), vertexData, GL_DYNAMIC_DRAW);
-    }
-
-    void Draw() {
-        if (nVertices > 0) {
-            mat4 VPTransform = camera.V() * camera.P();
-
-            int location = glGetUniformLocation(shaderProgram, "MVP");
-            if (location >= 0) glUniformMatrix4fv(location, 1, GL_TRUE, VPTransform);
-            else printf("uniform MVP cannot be set\n");
-
-            glBindVertexArray(vao);
-            glDrawArrays(GL_LINE_STRIP, 0, nVertices);
-        }
-    }
+    ColoredVertex(vec4 vertex, vec4 color) : v(vertex), c(color) {}
 };
 
-class Drawable {
-    unsigned int vao;    // vertex array object id
+struct Drawable {
+    GLuint vao, vbo;
 
 protected:
-    std::vector<vec4> vertices;
-    vec4 color;
+    std::vector<ColoredVertex> vertices;
     GLenum draw_type;
 
 public:
@@ -313,49 +267,27 @@ public:
     }
 
     void Create() {
-        glGenVertexArrays(1, &vao);    // create 1 vertex array object
-        glBindVertexArray(vao);        // make it active
+        glGenVertexArrays(1, &vao);
+        glBindVertexArray(vao);
+        glGenBuffers(1, &vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glEnableVertexAttribArray(0);  // attribute array 0
+        glEnableVertexAttribArray(1);  // attribute array 1
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (GLvoid *) 0);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (GLvoid *) (3 * sizeof(float)));
 
-        unsigned int vbo[2];        // vertex buffer objects
-        glGenBuffers(2, &vbo[0]);    // Generate 2 vertex buffer objects
-
-        // vertex coordinates: vbo[0] -> Attrib Array 0 -> vertexPosition of the vertex shader
-        glBindBuffer(GL_ARRAY_BUFFER, vbo[0]); // make it active, it is an array
-        float *vertexCoords = new float[vertices.size() * 3];
-        for (int i = 0; i<vertices.size(); i++) {
-            vertexCoords[i*3] = vertices[i].v[0];
-            vertexCoords[i*3+1] = vertices[i].v[1];
-            vertexCoords[i*3+2] = vertices[i].v[2];
-        } // vertex data on the CPU
-        glBufferData(GL_ARRAY_BUFFER,      // copy to the GPU
-                     sizeof(float) * vertices.size() * 3,  // number of the vbo in bytes
-                     vertexCoords,           // address of the data array on the CPU
-                     GL_STATIC_DRAW);       // copy to that part of the memory which is not modified
-        delete[] vertexCoords;
-        // Map Attribute Array 0 to the current bound vertex buffer (vbo[0])
-        glEnableVertexAttribArray(0);
-        // Data organization of Attribute Array 0
-        glVertexAttribPointer(0,            // Attribute Array 0
-                              3, GL_FLOAT,  // components/attribute, component type
-                              GL_FALSE,        // not in fixed point format, do not normalized
-                              0, NULL);     // stride and offset: it is tightly packed
-
-        // vertex colors: vbo[1] -> Attrib Array 1 -> vertexColor of the vertex shader
-        glBindBuffer(GL_ARRAY_BUFFER, vbo[1]); // make it active, it is an array
-        float *vertexColors = new float[vertices.size() * 3];
-        for (int i = 0; i<vertices.size()*3; i++) {
-            vertexColors[i*3] = color.v[0];
-            vertexColors[i*3+1] = color.v[1];
-            vertexColors[i*3+2] = color.v[2];
-        }// vertex data on the CPU
-        delete[] vertexColors;
-        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * vertices.size() * 3, vertexColors, GL_STATIC_DRAW);    // copy to the GPU
-
-        // Map Attribute Array 1 to the current bound vertex buffer (vbo[1])
-        glEnableVertexAttribArray(1);  // Vertex position
-        // Data organization of Attribute Array 1
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0,
-                              NULL); // Attribute Array 1, components/attribute, component type, normalize?, tightly packed
+        float *vertexData = new float[vertices.size() * 6];
+        for (int i = 0; i < vertices.size(); i++) {
+            vertexData[i * 6 + 0] = vertices[i].v.v[0]; // x
+            vertexData[i * 6 + 1] = vertices[i].v.v[1]; // y
+            vertexData[i * 6 + 2] = vertices[i].v.v[2]; // z
+            vertexData[i * 6 + 3] = vertices[i].c.v[0]; // R
+            vertexData[i * 6 + 4] = vertices[i].c.v[1]; // G
+            vertexData[i * 6 + 5] = vertices[i].c.v[2]; // B
+        }
+        // copy data to the GPU
+        glBufferData(GL_ARRAY_BUFFER, vertices.size() * 6 * sizeof(float), vertexData, GL_STATIC_DRAW);
+        delete[] vertexData;
     }
 
     virtual void Animate(float t) {
@@ -380,23 +312,24 @@ public:
     }
 };
 
-class Triangle: public Drawable {
+struct Triangle : public Drawable {
 public:
-    Triangle(vec4 a, vec4 b, vec4 c, vec4 color = vec4(1)) {
+    Triangle(ColoredVertex a, ColoredVertex b, ColoredVertex c) {
         // Model coords
         vertices.push_back(a);
         vertices.push_back(b);
         vertices.push_back(c);
 
-        this->color = color;
         draw_type = GL_TRIANGLES;
     }
 };
 
 // The virtual world
-Triangle t1(vec4(-1, -1), vec4(1, -1, 0), vec4(0, 1), vec4(0, 1));
-Triangle t2(vec4(0, -1, -1), vec4(0, -1, 1), vec4(0, 1, 0), vec4(1, 0));
-LineStrip lineStrip;
+Triangle t1(
+        ColoredVertex(vec4(-1, -1), vec4(0, 0, 1)),
+        ColoredVertex(vec4( 0,  1), vec4(1, 0, 0)),
+        ColoredVertex(vec4( 1, -1), vec4(0, 1, 0.5))
+);
 
 // Initialization, create an OpenGL context
 void onInitialization() {
@@ -404,8 +337,6 @@ void onInitialization() {
 
     // Create objects by setting up their vertex data on the GPU
     t1.Create();
-    t2.Create();
-    //lineStrip.Create();
 
     // Create vertex shader from string
     unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -461,8 +392,6 @@ void onDisplay() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the screen
 
     t1.Draw();
-    t2.Draw();
-    lineStrip.Draw();
     glutSwapBuffers();                                    // exchange the two buffers
 }
 
@@ -486,10 +415,11 @@ void onKeyboardUp(unsigned char key, int pX, int pY) {
 
 // Mouse click event
 void onMouse(int button, int state, int pX, int pY) {
-    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {  // GLUT_LEFT_BUTTON / GLUT_RIGHT_BUTTON and GLUT_DOWN / GLUT_UP
+    if (button == GLUT_LEFT_BUTTON &&
+        state == GLUT_DOWN) {  // GLUT_LEFT_BUTTON / GLUT_RIGHT_BUTTON and GLUT_DOWN / GLUT_UP
         float cX = 2.0f * pX / windowWidth - 1;    // flip y axis
         float cY = 1.0f - 2.0f * pY / windowHeight;
-        lineStrip.AddPoint(cX, cY);
+        //lineStrip.AddPoint(cX, cY);
         glutPostRedisplay();     // redraw
     }
 }
@@ -508,11 +438,6 @@ void onIdle() {
     t1.sy = 0.5f;
     t1.sz = 0.5f * sinf(sec);
 
-    // t2
-    t2.sx = 0.5f * cosf(sec);
-    t2.sy = 0.5f;
-    t2.sz = 0.5f * sinf(sec);
-
     glutPostRedisplay();                    // redraw the scene
 }
 
@@ -524,10 +449,12 @@ int main(int argc, char *argv[]) {
 #if !defined(__APPLE__)
     glutInitContextVersion(majorVersion, minorVersion);
 #endif
-    glutInitWindowSize(windowWidth, windowHeight);                // Application window is initially of resolution 600x600
+    glutInitWindowSize(windowWidth,
+                       windowHeight);                // Application window is initially of resolution 600x600
     glutInitWindowPosition(100, 100);                            // Relative location of the application window
 #if defined(__APPLE__)
-    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH | GLUT_3_2_CORE_PROFILE);  // 8 bit R,G,B,A + double buffer + depth buffer
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH |
+                        GLUT_3_2_CORE_PROFILE);  // 8 bit R,G,B,A + double buffer + depth buffer
 #else
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);
 #endif
