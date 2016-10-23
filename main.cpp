@@ -286,8 +286,8 @@ public:
     }
 
     void Animate(float t) {
-        //c.v[0] = 0.5f * cosf(t);
-        //c.v[1] = 0.5f * sinf(t);
+        c.v[0] = 5.5f * cosf(t);
+        c.v[1] = 5.5f * sinf(t);
         //c.v[2] = -3 + 0.5f * cosf(t);
     }
 };
