@@ -109,7 +109,7 @@ const char *vertexSource = R"(
 
 	void main() {
 		ourColor = color;
-		gl_Position = vec4(position, 1.0f) * MVP; 		// transform to clipping space
+		gl_Position = vec4(position, 1.0f) * MVP;
 	}
 )";
 
@@ -180,7 +180,7 @@ struct vec4 {
         v[3] = w;
     }
 
-    vec4 operator*(const mat4 &mat) {
+    vec4 operator*(const mat4 &mat) const{
         vec4 result;
         for (int j = 0; j < 4; j++) {
             result.v[j] = 0;
@@ -188,56 +188,107 @@ struct vec4 {
         }
         return result;
     }
+
+    vec4 operator%(const vec4  &vec) const {
+        return vec4(
+                y() * vec.z() - (z() * vec.y()),
+                z() * vec.x() - (x() * vec.z()),
+                x() * vec.y() - (y() * vec.x())
+        );
+    }
+
+    vec4 operator-(const vec4 &vec) const {
+        return vec4(x()-vec.x(),y()-vec.y(),z()-vec.z());
+    }
+
+    float length() const {
+        return sqrtf(x()*x() + y()*y() + z()*z());
+    }
+
+    vec4 normal() const {
+        float len = length();
+        return vec4(x()/len, y()/len, z()/len);
+    }
+
+    float x() const {return v[0]/v[3];}
+    float y() const {return v[1]/v[3];}
+    float z() const {return v[2]/v[3];}
 };
 
 // 3D camera
 struct Camera {
-    float x, y, z; // center
+    vec4 c; // center
+    vec4 t; // target
     float fov; // field of view
     float far, near;
 public:
     Camera() {
+        c = vec4(0, 0, 10);
+        t = vec4();
         fov = 45.0f;
         far = 100.0f;
         near = 0.1f;
         Animate(0);
     }
 
-    mat4 V() { // view matrix: translates the center to the origin
+    mat4 V() {
+        vec4 U(0.0f, 1.0f, 0.0f);
+        vec4 D = (c - t).normal();
+        vec4 R((U%D).normal());
+
+        mat4 A(
+                R.x(), R.y(), R.z(), 0.0f,
+                U.x(), U.y(), U.z(), 0.0f,
+                D.x(), D.y(), D.z(), 0.0f,
+                0.0f,  0.0f,  0.0f,  1.0f
+
+        );
+
+        mat4 B(
+                1,0,0,-c.x(),
+                0,1,0,-c.y(),
+                0,0,1,-c.z(),
+                0,0,0,1
+        );
+
+        return A * B;
+    }
+
+    mat4 oldV() { // view matrix: translates the center to the origin
 
         return mat4(1, 0, 0, 0,
                     0, 1, 0, 0,
                     0, 0, 1, 0,
-                    -x, -y, -z, 1);
+                    -c.x(), -c.y(), -c.z(), 1);
     }
 
     mat4 P() { // projection matrix (perspective)
-        float Q = far/(far-near);
-        return mat4(1/tanf(fov/2), 0, 0, 0,
-                    0, 1/tanf(fov/2), 0, 0,
+        float Q = far / (far - near);
+        return mat4(1 / tanf(fov / 2), 0, 0, 0,
+                    0, 1 / tanf(fov / 2), 0, 0,
                     0, 0, Q, 1,
-                    0, 0, -Q*near, 1);
+                    0, 0, -Q * near, 1);
     }
 
     mat4 Vinv() { // inverse view matrix
         return mat4(1, 0, 0, 0,
                     0, 1, 0, 0,
                     0, 0, 1, 0,
-                    x, y, z, 1);
+                    c.x(), c.y(), c.z(), 1);
     }
 
     mat4 Pinv() { // inverse projection matrix
-        float Q = far/(far-near);
-        return mat4(1/tanf(fov/2), 0, 0, 0,
-                    0, 1/tanf(fov/2), 0, 0,
+        float Q = far / (far - near);
+        return mat4(1 / tanf(fov / 2), 0, 0, 0,
+                    0, 1 / tanf(fov / 2), 0, 0,
                     0, 0, Q, 1,
-                    0, 0, -Q*near, 1);
+                    0, 0, -Q * near, 1);
     }
 
     void Animate(float t) {
-        x = 0;
-        y = 0;
-        z = -10 - 10 * cosf(t);
+        //c.v[0] = 0.5f * cosf(t);
+        //c.v[1] = 0.5f * sinf(t);
+        //c.v[2] = -3 + 0.5f * cosf(t);
     }
 };
 
@@ -329,6 +380,34 @@ public:
     }
 };
 
+struct Pyramid : public Drawable {
+public:
+    Pyramid() {
+        ColoredVertex a = ColoredVertex(vec4(-1, -1, -1), vec4(1));
+        ColoredVertex b = ColoredVertex(vec4(1, -1, -1), vec4(0, 1));
+        ColoredVertex c = ColoredVertex(vec4(0, -1, 1), vec4(0, 0, 1));
+        ColoredVertex d = ColoredVertex(vec4(0, 1, 0), vec4());
+
+        vertices.push_back(a);
+        vertices.push_back(b);
+        vertices.push_back(c);
+
+        vertices.push_back(a);
+        vertices.push_back(b);
+        vertices.push_back(d);
+
+        vertices.push_back(a);
+        vertices.push_back(c);
+        vertices.push_back(d);
+
+        vertices.push_back(b);
+        vertices.push_back(c);
+        vertices.push_back(d);
+
+        draw_type = GL_TRIANGLES;
+    }
+};
+
 // The virtual world
 Triangle t1(
         ColoredVertex(vec4(-1, -1), vec4(0, 0, 1)),
@@ -336,12 +415,15 @@ Triangle t1(
         ColoredVertex(vec4(1, -1), vec4(0, 1, 0.5))
 );
 
+Pyramid p1;
+
 // Initialization, create an OpenGL context
 void onInitialization() {
     glViewport(0, 0, windowWidth, windowHeight);
 
     // Create objects by setting up their vertex data on the GPU
-    t1.Create();
+    //t1.Create();
+    p1.Create();
 
     // Create vertex shader from string
     unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -396,16 +478,14 @@ void onDisplay() {
     glClearColor(0, 0, 0, 0);                            // background color
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the screen
 
-    t1.Draw();
+    p1.Draw();
+    //t1.Draw();
     glutSwapBuffers();                                    // exchange the two buffers
 }
 
 // Key of ASCII code pressed
 void onKeyboard(unsigned char key, int pX, int pY) {
     switch (key) {
-        case 'd':
-            glutPostRedisplay();         // if d, invalidate display, i.e. redraw
-            break;
         case 'q':
             exit(0);
         default:
@@ -438,10 +518,6 @@ void onIdle() {
     long time = glutGet(GLUT_ELAPSED_TIME); // elapsed time since the start of the program
     float sec = time / 1000.0f;                // convert msec to sec
     camera.Animate(sec);                    // animate the camera
-    // t1
-    t1.sx = 5.0f;
-    t1.sy = 5.0f;
-    t1.sz = 0.0f;
 
     glutPostRedisplay();                    // redraw the scene
 }
