@@ -192,47 +192,52 @@ struct vec4 {
 
 // 3D camera
 struct Camera {
-    float wCx, wCy, wCz;    // center in world coordinates
-    float wWx, wWy;    // width and height in world coordinates
+    float x, y, z; // center
+    float fov; // field of view
+    float far, near;
 public:
     Camera() {
+        fov = 45.0f;
+        far = 100.0f;
+        near = 0.1f;
         Animate(0);
     }
 
     mat4 V() { // view matrix: translates the center to the origin
+
         return mat4(1, 0, 0, 0,
                     0, 1, 0, 0,
                     0, 0, 1, 0,
-                    -wCx, -wCy, -wCz, 1);
+                    -x, -y, -z, 1);
     }
 
-    mat4 P() { // projection matrix: scales it to be a square of edge length 2
-        return mat4(2 / wWx, 0, 0, 0,
-                    0, 2 / wWy, 0, 0,
-                    0, 0, 1, 0,
-                    0, 0, 0, 1);
+    mat4 P() { // projection matrix (perspective)
+        float Q = far/(far-near);
+        return mat4(1/tanf(fov/2), 0, 0, 0,
+                    0, 1/tanf(fov/2), 0, 0,
+                    0, 0, Q, 1,
+                    0, 0, -Q*near, 1);
     }
 
     mat4 Vinv() { // inverse view matrix
         return mat4(1, 0, 0, 0,
                     0, 1, 0, 0,
                     0, 0, 1, 0,
-                    wCx, wCy, wCz, 1);
+                    x, y, z, 1);
     }
 
     mat4 Pinv() { // inverse projection matrix
-        return mat4(wWx / 2, 0, 0, 0,
-                    0, wWy / 2, 0, 0,
-                    0, 0, 1, 0,
-                    0, 0, 0, 1);
+        float Q = far/(far-near);
+        return mat4(1/tanf(fov/2), 0, 0, 0,
+                    0, 1/tanf(fov/2), 0, 0,
+                    0, 0, Q, 1,
+                    0, 0, -Q*near, 1);
     }
 
     void Animate(float t) {
-        wCx = 0;
-        wCy = 0;
-        wCz = 0;
-        wWx = 2;
-        wWy = 2;
+        x = 0;
+        y = 0;
+        z = -10 - 10 * cosf(t);
     }
 };
 
@@ -327,8 +332,8 @@ public:
 // The virtual world
 Triangle t1(
         ColoredVertex(vec4(-1, -1), vec4(0, 0, 1)),
-        ColoredVertex(vec4( 0,  1), vec4(1, 0, 0)),
-        ColoredVertex(vec4( 1, -1), vec4(0, 1, 0.5))
+        ColoredVertex(vec4(0, 1), vec4(1, 0, 0)),
+        ColoredVertex(vec4(1, -1), vec4(0, 1, 0.5))
 );
 
 // Initialization, create an OpenGL context
@@ -434,9 +439,9 @@ void onIdle() {
     float sec = time / 1000.0f;                // convert msec to sec
     camera.Animate(sec);                    // animate the camera
     // t1
-    t1.sx = 0.5f * cosf(sec);
-    t1.sy = 0.5f;
-    t1.sz = 0.5f * sinf(sec);
+    t1.sx = 5.0f;
+    t1.sy = 5.0f;
+    t1.sz = 0.0f;
 
     glutPostRedisplay();                    // redraw the scene
 }
