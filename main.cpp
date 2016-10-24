@@ -233,29 +233,20 @@ public:
 
     mat4 V() {
         vec4 U(0.0f, 1.0f, 0.0f);
-        vec4 D = (c - t).normal();
+        vec4 D = (t - c).normal();
         vec4 R((U%D).normal());
 
         mat4 A(
-                R.x(), R.y(), R.z(), 0.0f,
-                U.x(), U.y(), U.z(), 0.0f,
-                D.x(), D.y(), D.z(), 0.0f,
-                0.0f,  0.0f,  0.0f,  1.0f
-
+                R.x(), U.x(), D.x(), 0.0f,
+                R.y(), U.y(), D.y(), 0.0f,
+                R.z(), U.z(), D.z(), 0.0f,
+                0.0f, 0.0f, 0.0f, 1.0f
         );
 
-        mat4 B(
-                1,0,0,-c.x(),
-                0,1,0,-c.y(),
-                0,0,1,-c.z(),
-                0,0,0,1
-        );
-
-        return A * B;
+        return Vold() * A;
     }
 
-    mat4 oldV() { // view matrix: translates the center to the origin
-
+    mat4 Vold() { // view matrix: translates the center to the origin
         return mat4(1, 0, 0, 0,
                     0, 1, 0, 0,
                     0, 0, 1, 0,
@@ -286,9 +277,9 @@ public:
     }
 
     void Animate(float t) {
-        c.v[0] = 5.5f * cosf(t);
-        c.v[1] = 5.5f * sinf(t);
-        //c.v[2] = -3 + 0.5f * cosf(t);
+        c.v[0] = 2.5f * sinf(t);
+        c.v[1] = 0 ;//sinf(t);
+        c.v[2] = 2.5f * cosf(t);// + 0.5f * cosf(t);
     }
 };
 
@@ -466,6 +457,8 @@ void onInitialization() {
     checkLinking(shaderProgram);
     // make this program run
     glUseProgram(shaderProgram);
+
+    glEnable(GL_DEPTH_TEST);
 }
 
 void onExit() {
