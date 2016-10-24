@@ -376,7 +376,7 @@ public:
     Pyramid() {
         ColoredVertex a = ColoredVertex(vec4(-1, -1, -1), vec4(1));
         ColoredVertex b = ColoredVertex(vec4(1, -1, -1), vec4(0, 1));
-        ColoredVertex c = ColoredVertex(vec4(0, -1, 1), vec4(0, 0, 1));
+        ColoredVertex c = ColoredVertex(vec4(0, -1, sqrtf(2.0f)), vec4(0, 0, 1));
         ColoredVertex d = ColoredVertex(vec4(0, 1, 0), vec4(0.7f, 0, 1));
 
         vertices.push_back(a);
@@ -395,7 +395,7 @@ public:
         vertices.push_back(c);
         vertices.push_back(d);
 
-        draw_type = GL_TRIANGLES;
+        draw_type = GL_LINE_LOOP;
     }
 };
 
