@@ -377,7 +377,7 @@ public:
         ColoredVertex a = ColoredVertex(vec4(-1, -1, -1), vec4(1));
         ColoredVertex b = ColoredVertex(vec4(1, -1, -1), vec4(0, 1));
         ColoredVertex c = ColoredVertex(vec4(0, -1, 1), vec4(0, 0, 1));
-        ColoredVertex d = ColoredVertex(vec4(0, 1, 0), vec4());
+        ColoredVertex d = ColoredVertex(vec4(0, 1, 0), vec4(0.7f, 0, 1));
 
         vertices.push_back(a);
         vertices.push_back(b);
