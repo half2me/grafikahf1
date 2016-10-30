@@ -63,7 +63,7 @@ const unsigned int windowWidth = 600, windowHeight = 600;
 
 // Constants
 const float PI = 3.1415926f;
-const float DEG2RAD = PI/180.0f; // M_PI / 180
+const float DEG2RAD = PI / 180.0f; // M_PI / 180
 const float WORLD_RADIUS = 2;
 
 // OpenGL major and minor versions
@@ -135,6 +135,7 @@ const char *fragmentSource = R"(
 class mat4 {
 public:
     float m[4][4];
+
     mat4(float m00 = 1, float m01 = 0, float m02 = 0, float m03 = 0,
          float m10 = 0, float m11 = 1, float m12 = 0, float m13 = 0,
          float m20 = 0, float m21 = 0, float m22 = 0, float m23 = 0,
@@ -183,7 +184,7 @@ struct vec4 {
         v[3] = w;
     }
 
-    vec4 operator*(const mat4 &mat) const{
+    vec4 operator*(const mat4 &mat) const {
         vec4 result;
         for (int j = 0; j < 4; j++) {
             result.v[j] = 0;
@@ -192,7 +193,7 @@ struct vec4 {
         return result;
     }
 
-    vec4 operator%(const vec4  &vec) const {
+    vec4 operator%(const vec4 &vec) const {
         return vec4(
                 y() * vec.z() - (z() * vec.y()),
                 z() * vec.x() - (x() * vec.z()),
@@ -201,21 +202,23 @@ struct vec4 {
     }
 
     vec4 operator-(const vec4 &vec) const {
-        return vec4(x()-vec.x(),y()-vec.y(),z()-vec.z());
+        return vec4(x() - vec.x(), y() - vec.y(), z() - vec.z());
     }
 
     float length() const {
-        return sqrtf(x()*x() + y()*y() + z()*z());
+        return sqrtf(x() * x() + y() * y() + z() * z());
     }
 
     vec4 normal() const {
         float len = length();
-        return vec4(x()/len, y()/len, z()/len);
+        return vec4(x() / len, y() / len, z() / len);
     }
 
-    float x() const {return v[0]/v[3];}
-    float y() const {return v[1]/v[3];}
-    float z() const {return v[2]/v[3];}
+    float x() const { return v[0] / v[3]; }
+
+    float y() const { return v[1] / v[3]; }
+
+    float z() const { return v[2] / v[3]; }
 };
 
 // 3D camera
@@ -241,7 +244,7 @@ public:
     mat4 V() { // View matrix (Look at target)
         vec4 U(0.0f, 1.0f, 0.0f);
         vec4 D = (target - c).normal();
-        vec4 R((U%D).normal());
+        vec4 R((U % D).normal());
 
         // Translate world
         mat4 translation(
@@ -272,16 +275,16 @@ public:
 
     mat4 Portho() {
         return mat4(
-                2/(r-l), 0, 0, 0,
-                0, 2/(t-b), 0, 0,
-                0, 0, -2/(far-near), 0,
-                -(r+l)/(r-l), -(t+b)/(t-b), 2*(far+near)/(far-near), 1
+                2 / (r - l), 0, 0, 0,
+                0, 2 / (t - b), 0, 0,
+                0, 0, -2 / (far - near), 0,
+                -(r + l) / (r - l), -(t + b) / (t - b), 2 * (far + near) / (far - near), 1
         );
     }
 
     void Animate(float t) {
         c.v[0] = WORLD_RADIUS * sinf(t);
-        c.v[1] = 0 ;
+        c.v[1] = 0;
         c.v[2] = WORLD_RADIUS * cosf(t);
     }
 };
@@ -301,10 +304,8 @@ public:
 };
 
 class Drawable {
-private:
-    GLuint vao, vbo;
-
 protected:
+    GLuint vao, vbo;
     std::vector<ColoredVertex> vertices;
     GLenum draw_type;
 
@@ -358,9 +359,9 @@ public:
 
 class Circle : public Drawable {
 public:
-    Circle(vec4 color = vec4(1, 1, 1)){
+    Circle(vec4 color = vec4(1, 1, 1)) {
         int quality = 1000;
-        for (int i = 0; i<quality; i++) {
+        for (int i = 0; i < quality; i++) {
             float theta = 2.0f * PI * float(i) / float(quality);
             vertices.push_back(ColoredVertex(vec4(cosf(theta), sinf(theta)), color));
         }
@@ -368,22 +369,48 @@ public:
     }
 };
 
+class StaticCircle : public Circle {
+public:
+    virtual void Draw() {
+        mat4 MVPTransform = M * camera.P();
+
+        // set GPU uniform matrix variable MVP with the content of CPU variable MVPTransform
+        int location = glGetUniformLocation(shaderProgram, "MVP");
+        if (location >= 0)
+            glUniformMatrix4fv(location, 1, GL_TRUE, MVPTransform); // set uniform variable MVP to the MVPTransform
+        else printf("uniform MVP cannot be set\n");
+
+        glBindVertexArray(vao);    // make the vao and its vbos active playing the role of the data source
+        glDrawArrays(draw_type, 0, (GLsizei) vertices.size());    // draw vertices
+    }
+};
+
 class Globe : public Drawable {
     Circle circle;
+    StaticCircle glow;
 public:
     Globe() {
         circle = Circle(vec4(0.5, 0.5, 0.5)); // grey circle
+        glow = StaticCircle(); // white siluette
     }
 
     virtual void Create() {
         circle.Create();
+        glow.Create();
+        glow.M = mat4(
+                1, 0, 0, 0,
+                0, 1, 0, 0,
+                0, 0, 1, 0,
+                0, 0, 1.8, 1
+        );
     }
 
     virtual void Draw() {
+        glow.Draw();
         // Every 30deg
-        for (int i=0; i<180; i+=30) {
+        for (int i = 0; i < 180; i += 30) {
             // Vertical lines
-            float theta = i*DEG2RAD;
+            float theta = i * DEG2RAD;
             circle.M = mat4(
                     cosf(theta), 0, -sinf(theta), 0,
                     0, 1, 0, 0,
@@ -399,15 +426,13 @@ public:
                     0, -1, 0, 0,
                     0, 0, 0, 1
             ) * mat4( // place
-                sin(theta), 0, 0, 0,
-                0, sin(theta), 0, 0,
-                0, 0, sin(theta), 0,
-                0, cos(theta), 0, 1
+                    sin(theta), 0, 0, 0,
+                    0, sin(theta), 0, 0,
+                    0, 0, sin(theta), 0,
+                    0, cos(theta), 0, 1
             );
             circle.Draw();
         }
-
-
     }
 };
 
