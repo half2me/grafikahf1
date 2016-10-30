@@ -103,7 +103,7 @@ void checkLinking(unsigned int program) {
 
 // vertex shader in GLSL
 const char *vertexSource = R"(
-	#version 330 core
+	#version 330
     precision highp float;
 
 	uniform mat4 MVP;
@@ -445,9 +445,9 @@ void onInitialization() {
     glViewport(0, 0, windowWidth, windowHeight);
 
     // Create objects by setting up their vertex data on the GPU
-    for (Drawable &obj : objects) {
-        obj.Create();
-    }
+    //for (Drawable &obj : objects) {
+    //    obj.Create();
+    //}
     earth.Create();
 
     // Create vertex shader from string
@@ -546,7 +546,7 @@ void onMouseMotion(int pX, int pY) {
 void onIdle() {
     long time = glutGet(GLUT_ELAPSED_TIME); // elapsed time since the start of the program
     float sec = time / 1000.0f;                // convert msec to sec
-    camera.Animate(sec);                    // animate the camera
+    camera.Animate(0.4f*sec*PI);                    // animate the camera
 
     glutPostRedisplay();                    // redraw the scene
 }
