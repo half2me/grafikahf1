@@ -64,7 +64,7 @@ const unsigned int windowWidth = 600, windowHeight = 600;
 // Constants
 const float PI = 3.1415926f;
 const float DEG2RAD = PI/180.0f; // M_PI / 180
-const float WORLD_RADIUS = 5;
+const float WORLD_RADIUS = 2;
 
 // OpenGL major and minor versions
 int majorVersion = 3, minorVersion = 3;
@@ -221,22 +221,26 @@ struct vec4 {
 // 3D camera
 class Camera {
     vec4 c; // center
-    vec4 t; // target
+    vec4 target; // target
     float fov; // field of view
     float far, near;
+    float t, r, l, b;
 public:
     Camera() {
-        c = vec4(0, 0, 10);
-        t = vec4();
+        c = vec4(0, 0, WORLD_RADIUS);
+        target = vec4();
         fov = 45 * DEG2RAD;
-        far = 100.0f;
+        far = 1.0f;
         near = 0.1f;
+        t, r = 1.0f;
+        l, b = -1.0f;
+
         Animate(0);
     }
 
     mat4 V() { // View matrix (Look at target)
         vec4 U(0.0f, 1.0f, 0.0f);
-        vec4 D = (t - c).normal();
+        vec4 D = (target - c).normal();
         vec4 R((U%D).normal());
 
         // Translate world
@@ -264,6 +268,15 @@ public:
                     0, 1 / tanf(fov / 2), 0, 0,
                     0, 0, Q, 1,
                     0, 0, -Q * near, 1);
+    }
+
+    mat4 Portho() {
+        return mat4(
+                2/(r-l), 0, 0, 0,
+                0, 2/(t-b), 0, 0,
+                0, 0, -2/(far-near), 0,
+                -(r+l)/(r-l), -(t+b)/(t-b), 2*(far+near)/(far-near), 1
+        );
     }
 
     void Animate(float t) {
@@ -380,11 +393,16 @@ public:
             circle.Draw();
 
             // Horizontal lines
-            circle.M = mat4(
+            circle.M = mat4( // flip
                     1, 0, 0, 0,
-                    0, 0, 0, 0,
-                    0, 1, 1, 0,
+                    0, 0, 1, 0,
+                    0, -1, 0, 0,
                     0, 0, 0, 1
+            ) * mat4( // place
+                sin(theta), 0, 0, 0,
+                0, sin(theta), 0, 0,
+                0, 0, sin(theta), 0,
+                0, cos(theta), 0, 1
             );
             circle.Draw();
         }
