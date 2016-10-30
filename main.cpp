@@ -221,7 +221,7 @@ struct vec4 {
 };
 
 // 3D camera
-struct Camera {
+class Camera {
     vec4 c; // center
     vec4 t; // target
     float fov; // field of view
@@ -289,7 +289,8 @@ public:
     ColoredVertex(vec4 vertex, vec4 color) : v(vertex), c(color) {}
 };
 
-struct Drawable {
+class Drawable {
+private:
     GLuint vao, vbo;
 
 protected:
@@ -297,6 +298,7 @@ protected:
     GLenum draw_type;
 
 public:
+    float asd;
     float sx, sy, sz;        // scaling
     float wTx, wTy, wTz;     // translation
     Drawable() {
@@ -351,10 +353,10 @@ public:
     }
 };
 
-struct Circle : public Drawable {
+class Circle : public Drawable {
 public:
     Circle(vec4 color = vec4(1, 1, 1)){
-        int quality = 500;
+        int quality = 1000;
         for (int i = 0; i<quality; i++) {
             float theta = 2.0f * PI * float(i) / float(quality);
             vertices.push_back(ColoredVertex(vec4(cosf(theta), sinf(theta)), color));
@@ -363,49 +365,14 @@ public:
     }
 };
 
-struct Triangle : public Drawable {
-public:
-    Triangle(ColoredVertex a, ColoredVertex b, ColoredVertex c) {
-        // Model coords
-        vertices.push_back(a);
-        vertices.push_back(b);
-        vertices.push_back(c);
-
-        draw_type = GL_TRIANGLES;
-    }
-};
-
-struct Pyramid : public Drawable {
-public:
-    Pyramid() {
-        ColoredVertex a = ColoredVertex(vec4(-1, -1, -1), vec4(1));
-        ColoredVertex b = ColoredVertex(vec4(1, -1, -1), vec4(0, 1));
-        ColoredVertex c = ColoredVertex(vec4(0, -1, sqrtf(2.0f)), vec4(0, 0, 1));
-        ColoredVertex d = ColoredVertex(vec4(0, 1, 0), vec4(0.7f, 0, 1));
-
-        vertices.push_back(a);
-        vertices.push_back(b);
-        vertices.push_back(c);
-
-        vertices.push_back(a);
-        vertices.push_back(b);
-        vertices.push_back(d);
-
-        vertices.push_back(a);
-        vertices.push_back(c);
-        vertices.push_back(d);
-
-        vertices.push_back(b);
-        vertices.push_back(c);
-        vertices.push_back(d);
-
-        draw_type = GL_TRIANGLES;
-    }
-};
-
 // The virtual world
 
-Circle c1();
+Circle c1;
+Circle c2;
+Drawable d;
+d.asd = 0;
+c1.sx = cosf(30*DEG2RAD);
+//c2.sz = sinf(30*DEG2RAD);
 
 // Initialization, create an OpenGL context
 void onInitialization() {
@@ -414,6 +381,7 @@ void onInitialization() {
     // Create objects by setting up their vertex data on the GPU
     //t1.Create();
     c1.Create();
+    c2.Create();
 
     // Create vertex shader from string
     unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -471,7 +439,7 @@ void onDisplay() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the screen
 
     c1.Draw();
-    //t1.Draw();
+    c2.Draw();
     glutSwapBuffers();                                    // exchange the two buffers
 }
 
