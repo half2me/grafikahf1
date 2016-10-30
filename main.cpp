@@ -61,6 +61,11 @@ const unsigned int windowWidth = 600, windowHeight = 600;
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Innentol modosithatod...
 
+// Constants
+const float PI = 3.1415926f;
+const float DEG2RAD = PI/180.0f; // M_PI / 180
+const float WORLD_RADIUS = 5;
+
 // OpenGL major and minor versions
 int majorVersion = 3, minorVersion = 3;
 
@@ -225,50 +230,37 @@ public:
     Camera() {
         c = vec4(0, 0, 10);
         t = vec4();
-        fov = 45.0f;
+        fov = 45 * DEG2RAD;
         far = 100.0f;
         near = 0.1f;
         Animate(0);
     }
 
-    mat4 V() {
+    mat4 V() { // View matrix (Look at target)
         vec4 U(0.0f, 1.0f, 0.0f);
         vec4 D = (t - c).normal();
         vec4 R((U%D).normal());
 
-        mat4 A(
+        // Translate world
+        mat4 translation(
+                1, 0, 0, 0,
+                0, 1, 0, 0,
+                0, 0, 1, 0,
+                -c.x(), -c.y(), -c.z(), 1
+        );
+
+        // Look at target
+        mat4 lookAt(
                 R.x(), U.x(), D.x(), 0.0f,
                 R.y(), U.y(), D.y(), 0.0f,
                 R.z(), U.z(), D.z(), 0.0f,
                 0.0f, 0.0f, 0.0f, 1.0f
         );
 
-        return Vold() * A;
+        return translation * lookAt;
     }
 
-    mat4 Vold() { // view matrix: translates the center to the origin
-        return mat4(1, 0, 0, 0,
-                    0, 1, 0, 0,
-                    0, 0, 1, 0,
-                    -c.x(), -c.y(), -c.z(), 1);
-    }
-
-    mat4 P() { // projection matrix (perspective)
-        float Q = far / (far - near);
-        return mat4(1 / tanf(fov / 2), 0, 0, 0,
-                    0, 1 / tanf(fov / 2), 0, 0,
-                    0, 0, Q, 1,
-                    0, 0, -Q * near, 1);
-    }
-
-    mat4 Vinv() { // inverse view matrix
-        return mat4(1, 0, 0, 0,
-                    0, 1, 0, 0,
-                    0, 0, 1, 0,
-                    c.x(), c.y(), c.z(), 1);
-    }
-
-    mat4 Pinv() { // inverse projection matrix
+    mat4 P() { // Projection matrix (perspective)
         float Q = far / (far - near);
         return mat4(1 / tanf(fov / 2), 0, 0, 0,
                     0, 1 / tanf(fov / 2), 0, 0,
@@ -277,9 +269,9 @@ public:
     }
 
     void Animate(float t) {
-        c.v[0] = 2.5f * sinf(t);
-        c.v[1] = 0 ;//sinf(t);
-        c.v[2] = 2.5f * cosf(t);// + 0.5f * cosf(t);
+        c.v[0] = WORLD_RADIUS * sinf(t);
+        c.v[1] = 0 ;
+        c.v[2] = WORLD_RADIUS * cosf(t);
     }
 };
 
@@ -359,6 +351,18 @@ public:
     }
 };
 
+struct Circle : public Drawable {
+public:
+    Circle(vec4 color = vec4(1, 1, 1)){
+        int quality = 500;
+        for (int i = 0; i<quality; i++) {
+            float theta = 2.0f * PI * float(i) / float(quality);
+            vertices.push_back(ColoredVertex(vec4(cosf(theta), sinf(theta)), color));
+        }
+        draw_type = GL_LINE_LOOP;
+    }
+};
+
 struct Triangle : public Drawable {
 public:
     Triangle(ColoredVertex a, ColoredVertex b, ColoredVertex c) {
@@ -395,18 +399,13 @@ public:
         vertices.push_back(c);
         vertices.push_back(d);
 
-        draw_type = GL_LINE_LOOP;
+        draw_type = GL_TRIANGLES;
     }
 };
 
 // The virtual world
-Triangle t1(
-        ColoredVertex(vec4(-1, -1), vec4(0, 0, 1)),
-        ColoredVertex(vec4(0, 1), vec4(1, 0, 0)),
-        ColoredVertex(vec4(1, -1), vec4(0, 1, 0.5))
-);
 
-Pyramid p1;
+Circle c1();
 
 // Initialization, create an OpenGL context
 void onInitialization() {
@@ -414,7 +413,7 @@ void onInitialization() {
 
     // Create objects by setting up their vertex data on the GPU
     //t1.Create();
-    p1.Create();
+    c1.Create();
 
     // Create vertex shader from string
     unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -471,7 +470,7 @@ void onDisplay() {
     glClearColor(0, 0, 0, 0);                            // background color
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the screen
 
-    p1.Draw();
+    c1.Draw();
     //t1.Draw();
     glutSwapBuffers();                                    // exchange the two buffers
 }
