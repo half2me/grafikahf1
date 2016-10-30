@@ -132,15 +132,13 @@ const char *fragmentSource = R"(
 )";
 
 // row-major matrix 4x4
-struct mat4 {
-    float m[4][4];
+class mat4 {
 public:
-    mat4() {}
-
-    mat4(float m00, float m01, float m02, float m03,
-         float m10, float m11, float m12, float m13,
-         float m20, float m21, float m22, float m23,
-         float m30, float m31, float m32, float m33) {
+    float m[4][4];
+    mat4(float m00 = 1, float m01 = 0, float m02 = 0, float m03 = 0,
+         float m10 = 0, float m11 = 1, float m12 = 0, float m13 = 0,
+         float m20 = 0, float m21 = 0, float m22 = 0, float m23 = 0,
+         float m30 = 0, float m31 = 0, float m32 = 0, float m33 = 1) {
         m[0][0] = m00;
         m[0][1] = m01;
         m[0][2] = m02;
@@ -298,16 +296,13 @@ protected:
     GLenum draw_type;
 
 public:
-    float asd;
-    float sx, sy, sz;        // scaling
-    float wTx, wTy, wTz;     // translation
+    mat4 M; // Model matrix
     Drawable() {
-        sx = sy = sz = 1;
-        wTx = wTy = wTz = 0;
+        M = mat4();
         Animate(0);
     }
 
-    void Create() {
+    virtual void Create() {
         glGenVertexArrays(1, &vao);
         glBindVertexArray(vao);
         glGenBuffers(1, &vbo);
@@ -334,12 +329,7 @@ public:
     virtual void Animate(float t) {
     }
 
-    void Draw() {
-        mat4 M(sx, 0, 0, 0,
-               0, sy, 0, 0,
-               0, 0, sz, 0,
-               wTx, wTy, wTz, 1); // model matrix
-
+    virtual void Draw() {
         mat4 MVPTransform = M * camera.V() * camera.P();
 
         // set GPU uniform matrix variable MVP with the content of CPU variable MVPTransform
@@ -365,23 +355,57 @@ public:
     }
 };
 
-// The virtual world
+class Globe : public Drawable {
+    Circle circle;
+public:
+    Globe() {
+        circle = Circle(vec4(0.5, 0.5, 0.5)); // grey circle
+    }
 
-Circle c1;
-Circle c2;
-Drawable d;
-d.asd = 0;
-c1.sx = cosf(30*DEG2RAD);
-//c2.sz = sinf(30*DEG2RAD);
+    virtual void Create() {
+        circle.Create();
+    }
+
+    virtual void Draw() {
+        // Every 30deg
+        for (int i=0; i<180; i+=30) {
+            // Vertical lines
+            float theta = i*DEG2RAD;
+            circle.M = mat4(
+                    cosf(theta), 0, -sinf(theta), 0,
+                    0, 1, 0, 0,
+                    sinf(theta), 0, cosf(theta), 0,
+                    0, 0, 0, 1
+            );
+            circle.Draw();
+
+            // Horizontal lines
+            circle.M = mat4(
+                    1, 0, 0, 0,
+                    0, 0, 0, 0,
+                    0, 1, 1, 0,
+                    0, 0, 0, 1
+            );
+            circle.Draw();
+        }
+
+
+    }
+};
+
+// The virtual world
+std::vector<Drawable> objects;
+Globe earth;
 
 // Initialization, create an OpenGL context
 void onInitialization() {
     glViewport(0, 0, windowWidth, windowHeight);
 
     // Create objects by setting up their vertex data on the GPU
-    //t1.Create();
-    c1.Create();
-    c2.Create();
+    for (Drawable &obj : objects) {
+        obj.Create();
+    }
+    earth.Create();
 
     // Create vertex shader from string
     unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -438,8 +462,10 @@ void onDisplay() {
     glClearColor(0, 0, 0, 0);                            // background color
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the screen
 
-    c1.Draw();
-    c2.Draw();
+    for (Drawable &obj : objects) {
+        obj.Draw();
+    }
+    earth.Draw();
     glutSwapBuffers();                                    // exchange the two buffers
 }
 
