@@ -158,7 +158,7 @@ public:
         m[3][3] = m33;
     }
 
-    mat4 operator*(const mat4 &right) {
+    mat4 operator*(const mat4 &right) const {
         mat4 result;
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 4; j++) {
@@ -169,7 +169,17 @@ public:
         return result;
     }
 
-    operator float *() { return &m[0][0]; }
+    mat4 operator*=(const mat4 &right) {
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                m[i][j] = 0;
+                for (int k = 0; k < 4; k++) m[i][j] += m[i][k] * right.m[k][j];
+            }
+        }
+        return *this;
+    }
+
+    operator float *() const { return &m[0][0]; }
 };
 
 
@@ -191,6 +201,14 @@ struct vec4 {
             for (int i = 0; i < 4; i++) result.v[j] += v[i] * mat.m[i][j];
         }
         return result;
+    }
+
+    vec4 operator*=(const mat4 &mat) {
+        for (int j = 0; j < 4; j++) {
+            v[j] = 0;
+            for (int i = 0; i < 4; i++) v[j] += v[i] * mat.m[i][j];
+        }
+        return *this;
     }
 
     vec4 operator%(const vec4 &vec) const {
