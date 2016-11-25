@@ -103,7 +103,7 @@ void checkLinking(unsigned int program) {
 
 // vertex shader in GLSL
 const char *vertexSource = R"(
-	#version 330
+	#version 330 core
     precision highp float;
 
 	uniform mat4 MVP;
@@ -123,8 +123,8 @@ const char *fragmentSource = R"(
 	#version 330 core
     precision highp float;
 
-	in vec3 ourColor;				// variable input: interpolated color of vertex shader
-	out vec4 fragmentColor;		// output that goes to the raster memory as told by glBindFragDataLocation
+	in vec3 ourColor;
+	out vec4 fragmentColor;
 
 	void main() {
 		fragmentColor = vec4(ourColor, 1.0f); // extend RGB to RGBA
@@ -138,7 +138,7 @@ public:
 
     mat4(float m00 = 1, float m01 = 0, float m02 = 0, float m03 = 0,
          float m10 = 0, float m11 = 1, float m12 = 0, float m13 = 0,
-         float m20 = 0, float m21 = 0, float m22 = 0, float m23 = 0,
+         float m20 = 0, float m21 = 0, float m22 = 1, float m23 = 0,
          float m30 = 0, float m31 = 0, float m32 = 0, float m33 = 1) {
         m[0][0] = m00;
         m[0][1] = m01;
@@ -179,7 +179,7 @@ public:
         return *this;
     }
 
-    operator float *() const { return &m[0][0]; }
+    operator float *() const { return (float *) &m[0][0]; }
 };
 
 
@@ -192,6 +192,10 @@ struct vec4 {
         v[1] = y;
         v[2] = z;
         v[3] = w;
+    }
+
+    float &operator[](const int i) {
+        return v[i];
     }
 
     vec4 operator*(const mat4 &mat) const {
@@ -211,7 +215,7 @@ struct vec4 {
         return *this;
     }
 
-    vec4 operator%(const vec4 &vec) const {
+    vec4 operator%(const vec4 &vec) const { // cross product
         return vec4(
                 y() * vec.z() - (z() * vec.y()),
                 z() * vec.x() - (x() * vec.z()),
@@ -219,12 +223,24 @@ struct vec4 {
         );
     }
 
+    float operator*(const vec4 &vec) const { // dot product
+        return x() * vec.x() + y() * vec.y() + z() * vec.z();
+    }
+
     vec4 operator-(const vec4 &vec) const {
         return vec4(x() - vec.x(), y() - vec.y(), z() - vec.z());
     }
 
+    vec4 operator+(const vec4 &vec) const {
+        return vec4(x() + vec.x(), y() + vec.y(), z() + vec.z());
+    }
+
     float length() const {
-        return sqrtf(x() * x() + y() * y() + z() * z());
+        return sqrtf(*this * *this);
+    }
+
+    static float angle(const vec4 &a, const vec4 &b) {
+        return acosf(a * b / (a.length() * b.length()));
     }
 
     vec4 normal() const {
@@ -241,69 +257,64 @@ struct vec4 {
 
 // 3D camera
 class Camera {
-    vec4 c; // center
-    vec4 target; // target
-    float fov; // field of view
-    float far, near;
-    float t, r, l, b;
 public:
+    vec4 eye; // Specifies the position of the eye point.
+    vec4 center; // Specifies the position of the reference point.
+    vec4 up; // For tilting the camera
+    int fov; // Field of view (deg)
+    // Clipping planes:
+    float l,r,b,t,n,f; // left,right,bottom,top,near,far
     Camera() {
-        c = vec4(0, 0, WORLD_RADIUS);
-        target = vec4();
-        fov = 45 * DEG2RAD;
-        far = 1.0f;
-        near = 0.1f;
-        t, r = 1.0f;
-        l, b = -1.0f;
+        eye = vec4(0, 0, -2);
+        center = vec4();
+        up = vec4(0, 1, 0);
+        fov = 90;
+        r = 1.0f; l = -r;
+        t = 1.0f; b = -t;
+        n = 0.1f; f = 10.0f;
 
         Animate(0);
     }
 
-    mat4 V() { // View matrix (Look at target)
-        vec4 U(0.0f, 1.0f, 0.0f);
-        vec4 D = (target - c).normal();
-        vec4 R((U % D).normal());
+    mat4 V() { // View matrix glm::lookAt(eye, center, up)
 
-        // Translate world
-        mat4 translation(
-                1, 0, 0, 0,
-                0, 1, 0, 0,
-                0, 0, 1, 0,
-                -c.x(), -c.y(), -c.z(), 1
-        );
+        vec4 Z = (center-eye).normal();
+        vec4 X = (up % Z).normal();
+        vec4 Y = (Z % X).normal();
 
-        // Look at target
-        mat4 lookAt(
-                R.x(), U.x(), D.x(), 0.0f,
-                R.y(), U.y(), D.y(), 0.0f,
-                R.z(), U.z(), D.z(), 0.0f,
-                0.0f, 0.0f, 0.0f, 1.0f
-        );
-
-        return translation * lookAt;
-    }
-
-    mat4 P() { // Projection matrix (perspective)
-        float Q = far / (far - near);
-        return mat4(1 / tanf(fov / 2), 0, 0, 0,
-                    0, 1 / tanf(fov / 2), 0, 0,
-                    0, 0, Q, 1,
-                    0, 0, -Q * near, 1);
-    }
-
-    mat4 Portho() {
         return mat4(
-                2 / (r - l), 0, 0, 0,
-                0, 2 / (t - b), 0, 0,
-                0, 0, -2 / (far - near), 0,
-                -(r + l) / (r - l), -(t + b) / (t - b), 2 * (far + near) / (far - near), 1
+                X.x(), Y.x(), Z.x(), 0.0f, // @          @
+                X.y(), Y.y(), Z.y(), 0.0f, // @ Rotation @
+                X.z(), Y.z(), Z.z(), 0.0f, // @          @
+                X * eye, Y * eye, Z * eye, 1.0f // Translation
+        );
+    }
+
+    mat4 P() { return Pers(); }
+
+    mat4 Pers() { // Perspective Projection matrix
+        float S = 1/(tanf(fov/2 * DEG2RAD));
+        return mat4(
+                S, 0, 0, 0,
+                0, S, 0, 0,
+                0, 0, -f/(f-n), -1,
+                0, 0, -f*n/(f-n), 0
+        );
+    }
+
+    mat4 Portho() { // Orthogonal Projection matrix
+        return mat4(
+                1/r, 0, 0, 0,
+                0, 1/t, 0, 0,
+                0, 0, -2/(f-n), 0,
+                0, 0, -(f+n)/(f-n), 1
         );
     }
 
     void Animate(float t) {
-        c.v[0] = WORLD_RADIUS * sinf(t);
-        c.v[1] = 0;
-        c.v[2] = WORLD_RADIUS * cosf(t);
+        eye[0] = 0;
+        eye[1] = 2 * cosf(t);
+        eye[2] = 2 * sinf(t);
     }
 };
 
@@ -359,6 +370,7 @@ public:
     }
 
     virtual void Animate(float t) {
+
     }
 
     virtual void Draw() {
@@ -377,7 +389,7 @@ public:
 
 class Circle : public Drawable {
 public:
-    Circle(vec4 color = vec4(1, 1, 1)) {
+    Circle(vec4 color = vec4(1, 0, 0)) {
         int quality = 1000;
         for (int i = 0; i < quality; i++) {
             float theta = 2.0f * PI * float(i) / float(quality);
@@ -408,19 +420,11 @@ class Globe : public Drawable {
     StaticCircle glow;
 public:
     Globe() {
-        circle = Circle(vec4(0.5, 0.5, 0.5)); // grey circle
-        glow = StaticCircle(); // white siluette
+        circle = Circle(vec4(1, 0, 0)); // red circle
     }
 
     virtual void Create() {
         circle.Create();
-        glow.Create();
-        glow.M = mat4(
-                1, 0, 0, 0,
-                0, 1, 0, 0,
-                0, 0, 1, 0,
-                0, 0, 1.8, 1
-        );
     }
 
     virtual void Draw() {
@@ -444,10 +448,10 @@ public:
                     0, -1, 0, 0,
                     0, 0, 0, 1
             ) * mat4( // place
-                    sin(theta), 0, 0, 0,
-                    0, sin(theta), 0, 0,
-                    0, 0, sin(theta), 0,
-                    0, cos(theta), 0, 1
+                    sinf(theta), 0, 0, 0,
+                    0, sinf(theta), 0, 0,
+                    0, 0, sinf(theta), 0,
+                    0, cosf(theta), 0, 1
             );
             circle.Draw();
         }
@@ -532,6 +536,8 @@ void onDisplay() {
 
 // Key of ASCII code pressed
 void onKeyboard(unsigned char key, int pX, int pY) {
+    printf("Eye: %0.2f, %0.2f, %0.2f\n", camera.eye[0], camera.eye[1], camera.eye[2]);
+    float theta = 2 * DEG2RAD;
     switch (key) {
         case 'q':
             exit(0);
@@ -564,7 +570,7 @@ void onMouseMotion(int pX, int pY) {
 void onIdle() {
     long time = glutGet(GLUT_ELAPSED_TIME); // elapsed time since the start of the program
     float sec = time / 1000.0f;                // convert msec to sec
-    camera.Animate(0.4f*sec*PI);                    // animate the camera
+    camera.Animate(0.4f * sec * PI);                    // animate the camera
 
     glutPostRedisplay();                    // redraw the scene
 }
